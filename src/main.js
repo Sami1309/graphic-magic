@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!prompt) return;
 
         const currentStyleImage = styleImageBase64;
+        const requestId = generateRequestId();
 
         addMessageToChat(prompt, 'user');
         generateBtn.classList.add('loading');
@@ -47,75 +48,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // Start the streaming generation process
-            const response = await fetch('/.netlify/functions/generate', {
+            // Start the background function
+            const response = await fetch('/.netlify/functions/generate-background', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ prompt, history: conversationHistory.join('\n'), styleImage: currentStyleImage }),
+                body: JSON.stringify({ 
+                    prompt, 
+                    history: conversationHistory.join('\n'), 
+                    styleImage: currentStyleImage,
+                    requestId 
+                }),
             });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // Handle streaming response
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                
-                if (done) {
-                    break;
-                }
-
-                // Decode the chunk and add to buffer
-                buffer += decoder.decode(value, { stream: true });
-                
-                // Process complete lines
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // Keep incomplete line in buffer
-                
-                for (const line of lines) {
-                    if (line.trim()) {
-                        try {
-                            const data = JSON.parse(line);
-                            
-                            if (data.status === 'processing') {
-                                // Update UI with progress
-                                generateBtn.textContent = data.message || 'Processing...';
-                                console.log('Processing:', data.message);
-                            } else if (data.status === 'completed' && data.result) {
-                                // Generation complete - update scene
-                                updateScene(data.result);
-                                conversationHistory.push(`User: ${prompt}`);
-                                conversationHistory.push(`AI: (Generated new animation script)`);
-                                addMessageToChat('Animation updated.', 'ai');
-                                return; // Exit the function successfully
-                            } else if (data.status === 'error') {
-                                // Error occurred
-                                throw new Error(data.error || 'Generation failed');
-                            }
-                        } catch (parseError) {
-                            console.warn('Failed to parse streaming response:', line, parseError);
-                        }
-                    }
-                }
-            }
-
-            // If we get here without a completed result, something went wrong
-            throw new Error('Stream ended without completion');
+            // Background function started successfully (202 response)
+            console.log('Background function started, polling for results...');
+            
+            // Poll for results
+            await pollForResult(requestId, prompt);
 
         } catch (error) {
             console.error('Error:', error);
             addMessageToChat(`Sorry, something went wrong: ${error.message}`, 'ai');
-        } finally {
             generateBtn.classList.remove('loading');
             generateBtn.textContent = 'Generate';
         }
+    }
+
+    function generateRequestId() {
+        return Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+    }
+
+    async function pollForResult(requestId, originalPrompt) {
+        const maxAttempts = 60; // 5 minutes with 5-second intervals
+        let attempts = 0;
+
+        const poll = async () => {
+            attempts++;
+            
+            try {
+                const response = await fetch(`/.netlify/functions/get-result?requestId=${requestId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.status === 'pending') {
+                    // Still processing
+                    generateBtn.textContent = `Generating... (${attempts}/${maxAttempts})`;
+                    
+                    if (attempts < maxAttempts) {
+                        setTimeout(poll, 5000); // Poll every 5 seconds
+                    } else {
+                        throw new Error('Generation timed out');
+                    }
+                } else if (data.status === 'completed' && data.result) {
+                    // Generation complete - update scene
+                    updateScene(data.result);
+                    conversationHistory.push(`User: ${originalPrompt}`);
+                    conversationHistory.push(`AI: (Generated new animation script)`);
+                    addMessageToChat('Animation updated.', 'ai');
+                    
+                    generateBtn.classList.remove('loading');
+                    generateBtn.textContent = 'Generate';
+                } else if (data.status === 'error') {
+                    // Error occurred
+                    throw new Error(data.error || 'Generation failed');
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+                addMessageToChat(`Sorry, something went wrong: ${error.message}`, 'ai');
+                generateBtn.classList.remove('loading');
+                generateBtn.textContent = 'Generate';
+            }
+        };
+
+        // Start polling
+        setTimeout(poll, 2000); // Initial delay of 2 seconds
     }
 
 
