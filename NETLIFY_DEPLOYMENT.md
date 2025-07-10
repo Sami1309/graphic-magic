@@ -1,6 +1,6 @@
 # Netlify Deployment Guide
 
-This guide will help you deploy your AI Motion Graphics Generator to Netlify with proper background function support to avoid timeout issues.
+This guide will help you deploy your AI Motion Graphics Generator to Netlify with streaming edge function support to avoid timeout issues.
 
 ## Prerequisites
 
@@ -43,82 +43,102 @@ Make sure your `netlify.toml` file contains:
   # Use zisi bundler for better Node.js compatibility
   node_bundler = "zisi"
 
-[functions."generate"]
-  # Enable background function to avoid 10-second timeout
-  background = true
+# Edge function configuration for streaming responses
+[[edge_functions]]
+  function = "generate"
+  path = "/.netlify/functions/generate"
 ```
 
 ## Step 4: Deploy
 
 1. Click "Deploy site" in Netlify
 2. Wait for the build to complete
-3. Check the **Functions** tab to verify your function deployed successfully
+3. Check the **Edge Functions** tab to verify your function deployed successfully
 
 ## Step 5: Test Your Deployment
 
 1. Visit your deployed site URL
 2. Try generating an animation with a prompt
-3. The generation should work without timeout errors
+3. Watch the button text change to show progress ("Starting generation...", "Calling AI model...", etc.)
+4. The generation should work without timeout errors
 
-## Background Function Behavior
+## Edge Function Streaming Behavior
 
-- **Timeout**: Background functions can run up to 15 minutes (vs 10 seconds for regular functions)
-- **Response**: The function returns the result directly when complete
-- **Error Handling**: Errors are properly caught and returned to the frontend
-- **Status**: The "Generating..." button will show while processing
+- **No Timeout**: Edge functions can run indefinitely without timeout issues
+- **Real-time Updates**: The frontend receives progress updates as the function processes
+- **Streaming Response**: Data is sent as it becomes available, not all at once
+- **Better UX**: Users see progress indicators and know the system is working
+
+## How Streaming Works
+
+1. **Frontend**: Sends request to edge function
+2. **Edge Function**: Starts processing and immediately sends status updates
+3. **Frontend**: Receives streaming updates and updates the UI
+4. **Completion**: When AI generation is complete, the result is sent and the scene is updated
 
 ## Troubleshooting
 
-### Function Not Found Error
-- Check that `netlify/functions/generate.js` exists
-- Verify the functions directory is set correctly in netlify.toml
+### Edge Function Not Found Error
+- Check that `netlify/edge-functions/generate.js` exists
+- Verify the edge function is configured correctly in netlify.toml
+- Make sure the path mapping is correct
 
 ### API Key Issues
 - Make sure `GEMINI_API_KEY` is set in Netlify environment variables
 - Check that the key is valid and has proper permissions
 - Verify the variable name matches exactly (case-sensitive)
 
-### Bundle/Import Errors
-- Ensure `@google/genai` is in `external_node_modules`
-- Try clearing the deploy cache and redeploying
-- Check that `node_bundler = "zisi"` is set
+### Streaming Issues
+- Check browser console for JavaScript errors
+- Verify the response is being parsed correctly
+- Make sure the fetch API supports streaming in your browser
 
-### Background Function Not Working
-- Verify `background = true` is set for the generate function
-- Check the function logs in Netlify dashboard
-- Ensure the function is returning proper JSON responses
+### Import/Module Errors
+- Edge functions use ES modules and ESM imports
+- The `@google/genai` library is imported via esm.sh CDN
+- No bundling issues since it's loaded at runtime
 
-### Timeout Issues
-- Background functions should handle long-running requests automatically
-- If still timing out, check the function logs for specific errors
-- Consider optimizing the AI prompt for faster responses
+### CORS Issues
+- Edge function includes proper CORS headers
+- Make sure the request is coming from the same origin
+- Check browser network tab for CORS errors
 
 ## Function Logs
 
 To debug issues:
 1. Go to your Netlify site dashboard
-2. Click **Functions** → **generate**
+2. Click **Edge Functions** → **generate**
 3. Check the logs for error messages
 4. Look for specific error details in the console
 
 ## Local Development
 
-For local development with background functions:
+For local development with edge functions:
 1. Install Netlify CLI: `npm install -g netlify-cli`
 2. Run: `netlify dev`
-3. This will simulate the background function behavior locally
+3. This will simulate the edge function behavior locally
+4. Check the console for streaming updates
 
 ## Important Notes
 
-- Background functions are only available on Netlify Pro plans and above
-- The function will automatically handle timeouts up to 15 minutes
-- Response times will vary based on the complexity of the animation request
-- The frontend will wait for the complete response before updating the scene
+- Edge functions are available on all Netlify plans (including free)
+- Edge functions run on Netlify's global CDN for better performance
+- Streaming responses provide real-time feedback to users
+- The function uses ESM imports from esm.sh for dependencies
+- No timeout limitations - perfect for long-running AI requests
+
+## Performance Benefits
+
+- **Faster Response**: Edge functions run closer to users
+- **Better Reliability**: No timeout issues with long AI generation
+- **Real-time Feedback**: Users see progress as it happens
+- **Global Distribution**: Runs on Netlify's global edge network
 
 ## Support
 
 If you encounter issues:
-1. Check the Netlify function logs first
+1. Check the Netlify edge function logs first
 2. Verify all environment variables are set
 3. Test the function locally with `netlify dev`
 4. Check the browser console for client-side errors
+5. Verify streaming is working by watching network requests

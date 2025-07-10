@@ -47,37 +47,67 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // Start the background generation process
+            // Start the streaming generation process
             const response = await fetch('/.netlify/functions/generate', {
                 method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 body: JSON.stringify({ prompt, history: conversationHistory.join('\n'), styleImage: currentStyleImage }),
             });
 
-            const responseText = await response.text();
             if (!response.ok) {
-                try {
-                    const errorJson = JSON.parse(responseText);
-                    throw new Error(errorJson.details || errorJson.error || "An unknown error occurred.");
-                } catch (e) {
-                    throw new Error(responseText || "An unknown server error occurred.");
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            // Handle streaming response
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                    break;
+                }
+
+                // Decode the chunk and add to buffer
+                buffer += decoder.decode(value, { stream: true });
+                
+                // Process complete lines
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                
+                for (const line of lines) {
+                    if (line.trim()) {
+                        try {
+                            const data = JSON.parse(line);
+                            
+                            if (data.status === 'processing') {
+                                // Update UI with progress
+                                generateBtn.textContent = data.message || 'Processing...';
+                                console.log('Processing:', data.message);
+                            } else if (data.status === 'completed' && data.result) {
+                                // Generation complete - update scene
+                                updateScene(data.result);
+                                conversationHistory.push(`User: ${prompt}`);
+                                conversationHistory.push(`AI: (Generated new animation script)`);
+                                addMessageToChat('Animation updated.', 'ai');
+                                return; // Exit the function successfully
+                            } else if (data.status === 'error') {
+                                // Error occurred
+                                throw new Error(data.error || 'Generation failed');
+                            }
+                        } catch (parseError) {
+                            console.warn('Failed to parse streaming response:', line, parseError);
+                        }
+                    }
                 }
             }
 
-            const data = JSON.parse(responseText);
-            
-            // Background function will eventually return the result directly
-            // For now, we just process the result when it comes back
-            if (data.html || data.css || data.js) {
-                // Direct response with animation data
-                updateScene(data);
-                conversationHistory.push(`User: ${prompt}`);
-                conversationHistory.push(`AI: (Generated new animation script)`);
-                addMessageToChat('Animation updated.', 'ai');
-            } else {
-                // Unexpected response format
-                console.warn('Unexpected response format:', data);
-                addMessageToChat('Animation generation completed, but response format was unexpected.', 'ai');
-            }
+            // If we get here without a completed result, something went wrong
+            throw new Error('Stream ended without completion');
 
         } catch (error) {
             console.error('Error:', error);
