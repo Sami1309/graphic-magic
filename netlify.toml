@@ -13,7 +13,7 @@
   # Switch from the default 'esbuild' bundler to 'zisi'.
   # 'zisi' is more robust for functions with complex Node.js dependencies.
   node_bundler = "zisi"
-
+  timeout = 26
 [functions."generate"]
   # Enable background function to avoid 10-second timeout
   background = true
