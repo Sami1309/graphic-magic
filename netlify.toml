@@ -1,6 +1,6 @@
 [build]
-command = "npm run build"
-publish = "dist"
-functions = "netlify/functions"
+ command = "npm run build"
+ publish = "dist"
+ functions = "netlify/functions"
 [functions]
-external_node_modules = ["@google/genai"]
+ external_node_modules = ["@google/genai"]
