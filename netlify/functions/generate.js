@@ -1,11 +1,11 @@
-// This file replaces server.js for deployment.
-// We use the 'dotenv' package to load environment variables.
+// netlify/functions/generate.js
+
+// This file is now using CommonJS syntax (require/exports) for maximum compatibility.
 const { GoogleGenAI } = require("@google/genai");
 const { styleContext } = require('../../style-base/default.js');
 
-// The handler function is the entry point for the serverless function.
+// Use 'exports.handler' instead of 'export const handler'
 exports.handler = async (event) => {
-    // We only accept POST requests.
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
@@ -15,7 +15,7 @@ exports.handler = async (event) => {
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            throw new Error("GEMINI_API_KEY is not set.");
+            throw new Error("GEMINI_API_KEY is not set in the Netlify UI.");
         }
         if (!prompt) {
             return { statusCode: 400, body: JSON.stringify({ error: 'Prompt is required' }) };
@@ -39,10 +39,10 @@ exports.handler = async (event) => {
             contents = [{ text: fullPrompt }];
         }
 
-        const systemInstructionWithImage = styleContext + "\nIf an image is provided, use it as reference for creating the animation";
+        const systemInstructionWithImage = styleContext + "\nIf an image is provided, use it as the primary style reference.";
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-1.5-pro-latest",
             contents: contents,
             config: {
                 systemInstruction: styleImage ? systemInstructionWithImage : styleContext,
@@ -54,11 +54,21 @@ exports.handler = async (event) => {
             },
         });
 
+        // --- THIS IS THE FIX ---
+        // 1. Get the raw text from Gemini, which might have unescaped newlines.
+        const geminiRawText = response.text;
+
+        // 2. Parse it on the server into a true JavaScript object.
+        const geminiJsObject = JSON.parse(geminiRawText);
+
+        // 3. Re-stringify it. This creates a perfectly clean, valid JSON string
+        //    with all control characters correctly escaped for the browser.
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
-            body: response.text,
+            body: JSON.stringify(geminiJsObject),
         };
+        // --- END OF FIX ---
 
     } catch (error) {
         console.error('Error in serverless function:', error);
