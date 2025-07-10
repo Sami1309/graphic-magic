@@ -58,14 +58,18 @@ exports.handler = async (event) => {
         // 1. Get the raw text from Gemini, which might have unescaped newlines.
         const geminiRawText = response.text;
 
-        console.log("Raw text from gemini")
-        console.log(geminiRawText)
+        // 2. Sanitize the raw text BEFORE parsing. This replaces any unescaped
+        //    newline, carriage return, or tab characters with their proper escaped
+        //    versions, which prevents the JSON.parse() from failing.
+        const sanitizedText = geminiRawText
+            .replace(/\n/g, "\\n")
+            .replace(/\r/g, "\\r")
+            .replace(/\t/g, "\\t");
 
-        // 2. Parse it on the server into a true JavaScript object.
-        const geminiJsObject = JSON.parse(geminiRawText);
+        // 3. Parse the now-safe text into a true JavaScript object.
+        const geminiJsObject = JSON.parse(sanitizedText);
 
-        // 3. Re-stringify it. This creates a perfectly clean, valid JSON string
-        //    with all control characters correctly escaped for the browser.
+        // 4. Re-stringify it to send a perfectly clean response to the browser.
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },

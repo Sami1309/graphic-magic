@@ -13,8 +13,7 @@ Avoid using scene.stagger and scene.add for now
     *   This code will be executed directly.
     *   It **MUST** create a new Scene.js instance (e.g., \`const scene = new Scene(...)\`).
     *   The script **MUST** end with \`return scene;\` so the application can capture and control the animation.
-    *   Do not include any \`<script>\` tags in the JavaScript string.
-
+    *   **CRITICAL:** All content within the JSON string values, especially the 'js' field, MUST be properly escaped. All literal newline characters must be escaped as a two-character sequence: \\n. All double quotes must be escaped as \\".
 **Example User Prompt:** "Create a hanging tag that swings and shows a percentage."
 
 **Example JSON Output Structure:**
