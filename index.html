@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Motion Graphics Editor</title>
-    <link rel="stylesheet" href="css/style.css">
+    <!-- The CSS is now imported directly in main.js -->
     <style id="dynamic-styles"></style>
 </head>
 <body>
@@ -14,8 +14,8 @@
                 <div class="left-controls">
                     <button id="edit-btn">Edit</button>
                     <select id="aspect-ratio">
-                        <option value="widescreen">Widescreen (16:9)</option>
-                        <option value="square">Square (1:1)</option>
+                        <option value="16:9">Widescreen (16:9)</option>
+                        <option value="1:1">Square (1:1)</option>
                     </select>
                     <input type="range" id="duration-slider" min="5" max="15" value="10" step="1" title="Animation Duration (seconds)">
                     <span id="duration-display">10s</span>
@@ -24,11 +24,8 @@
                     <button id="export-btn">Export MP4</button>
                 </div>
             </div>
-            <!-- Modified Scene Container -->
             <div id="scene-container" class="scene-container">
-                <div id="scene-canvas" class="scene-canvas">
-                    <!-- Generated HTML will be injected here -->
-                </div>
+                <!-- Generated HTML will be injected here -->
             </div>
             <div class="timeline-controls">
                 <button id="play-pause-btn">▶</button>
@@ -53,9 +50,7 @@
         </div>
     </div>
 
-    <script src="https://daybrush.com/scenejs/release/latest/dist/scene.min.js"></script>
-    <script src="https://daybrush.com/scenejs-recorder/release/latest/dist/recorder.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
-    <script src="js/app.js"></script>
+    <!-- Load the bundled JavaScript as a module -->
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>

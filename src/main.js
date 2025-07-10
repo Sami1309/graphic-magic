@@ -1,4 +1,11 @@
-// public/js/app.js
+// src/main.js
+
+// --- Import libraries directly ---
+import Scene from "scenejs";
+import Recorder from "@scenejs/recorder";
+import interact from "interactjs";
+import './style.css'; // Vite handles injecting the CSS
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Element Selection ---
     const sceneContainer = document.getElementById('scene-container');
@@ -39,15 +46,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch('http://localhost:3000/api/generate', {
+            // --- THIS IS THE KEY CHANGE ---
+            // The URL now points to the serverless function endpoint.
+            // This works both locally with Netlify Dev and in production.
+            const response = await fetch('/.netlify/functions/generate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                // No longer need full URL or headers, as it's on the same "origin"
                 body: JSON.stringify({ prompt, history: conversationHistory.join('\n'), styleImage: currentStyleImage }),
             });
 
-            if (!response.ok) throw new Error((await response.json()).error);
+            // The serverless function returns the body directly as a string
+            const responseText = await response.text();
+            if (!response.ok) {
+                // Try to parse error details from the response text
+                try {
+                    const errorJson = JSON.parse(responseText);
+                    throw new Error(errorJson.details || errorJson.error || "An unknown error occurred.");
+                } catch (e) {
+                    throw new Error(responseText || "An unknown server error occurred.");
+                }
+            }
 
-            const data = await response.json();
+            const data = JSON.parse(responseText);
             updateScene(data);
 
             conversationHistory.push(`User: ${prompt}`);
@@ -70,8 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
         sceneContainer.innerHTML = html;
 
         try {
-            const sceneScript = new Function(js);
-            scene = sceneScript();
+            const sceneScript = new Function("Scene", js);
+            scene = sceneScript(Scene);
 
             if (!scene || typeof scene.on !== 'function') {
                 throw new Error("Generated script did not return a valid Scene.js instance.");
@@ -105,7 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Corrected Download Function ---
     async function downloadAnimation() {
         if (!scene) {
             alert("Please generate an animation first.");
@@ -117,33 +136,19 @@ document.addEventListener('DOMContentLoaded', () => {
         exportBtn.disabled = true;
 
         try {
-            // ** THE FIX: Instantiate the recorder from the Scene object **
-            // The recorder script attaches its class to the global Scene object.
-            const recorder = new Scene.Recorder();
-
-            // Set the scene instance for the recorder to capture
+            const recorder = new Recorder();
             recorder.setAnimator(scene);
 
-            // Get the current dimensions of the scene container to maintain aspect ratio
-            const width = sceneContainer.offsetWidth;
-            const height = sceneContainer.offsetHeight;
-
-            // Record the animation with the correct dimensions
             const videoBlob = await recorder.record({
-                format: "mp4",
-                width: width,
-                height: height,
+                format: "mp4"
             });
 
-            // Create a temporary URL and trigger the download
             const url = URL.createObjectURL(videoBlob);
             const a = document.createElement('a');
             a.href = url;
             a.download = 'animation.mp4';
             document.body.appendChild(a);
-            a.click();
-
-            // Clean up
+a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
@@ -155,8 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
             exportBtn.disabled = false;
         }
     }
-
-    // --- UI Update and Helper Functions ---
 
     function scopeCSS(cssString, scope) {
         if (!cssString) return '';
@@ -186,8 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
         chatHistory.appendChild(messageElement);
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }
-
-    // --- Event Listeners for Controls ---
 
     generateBtn.addEventListener('click', generateAnimation);
     promptInput.addEventListener('keyup', e => e.key === 'Enter' && generateAnimation());
@@ -222,10 +223,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     exportBtn.addEventListener('click', downloadAnimation);
 
-    // --- Interact.js (Placeholder) ---
-    function makeElementsInteractive() {}
+    function makeElementsInteractive() {
+        interact('.interactive').draggable({
+            listeners: {
+                move(event) {
+                    const target = event.target;
+                    const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                    const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                    target.style.transform = `translate(${x}px, ${y}px)`;
+                    target.setAttribute('data-x', x);
+                    target.setAttribute('data-y', y);
+                }
+            }
+        });
+    }
 
-    // Initialize UI
     durationDisplay.textContent = `${durationSlider.value}s`;
     timelineSlider.max = durationSlider.value;
     updateTimeUI(0);
