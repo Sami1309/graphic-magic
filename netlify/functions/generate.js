@@ -69,11 +69,16 @@ exports.handler = async (event) => {
         const jsonBlock = geminiRawText.substring(startIndex, endIndex + 1);
         const geminiJsObject = JSON.parse(jsonBlock);
 
-        // Return the result directly
+        // Return streaming response format expected by frontend
+        const streamingResponse = JSON.stringify({
+            status: 'completed',
+            result: geminiJsObject
+        });
+        
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(geminiJsObject)
+            body: streamingResponse
         };
 
     } catch (error) {
