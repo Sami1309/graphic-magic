@@ -58,18 +58,23 @@ exports.handler = async (event) => {
         // 1. Get the raw text from Gemini, which might have unescaped newlines.
         const geminiRawText = response.text;
 
-        // 2. Sanitize the raw text BEFORE parsing. This replaces any unescaped
-        //    newline, carriage return, or tab characters with their proper escaped
-        //    versions, which prevents the JSON.parse() from failing.
-        const sanitizedText = geminiRawText
-            .replace(/\n/g, "\\n")
-            .replace(/\r/g, "\\r")
-            .replace(/\t/g, "\\t");
+        // 2. Find the start and end of the JSON object within the raw response.
+        //    This handles cases where the LLM wraps the JSON in ```json ... ``` or other text.
+        const startIndex = geminiRawText.indexOf('{');
+        const endIndex = geminiRawText.lastIndexOf('}');
 
-        // 3. Parse the now-safe text into a true JavaScript object.
-        const geminiJsObject = JSON.parse(sanitizedText);
+        if (startIndex === -1 || endIndex === -1) {
+            throw new Error("LLM response did not contain a valid JSON object. Raw response: " + geminiRawText);
+        }
 
-        // 4. Re-stringify it to send a perfectly clean response to the browser.
+        // 3. Extract the JSON block as a string.
+        const jsonBlock = geminiRawText.substring(startIndex, endIndex + 1);
+
+        // 4. Parse the extracted block. If this fails, the catch block will now have a more informative error.
+        const geminiJsObject = JSON.parse(jsonBlock);
+
+        // 5. Re-stringify the parsed object to ensure it's perfectly clean
+        //    for the browser, escaping all control characters correctly.
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
