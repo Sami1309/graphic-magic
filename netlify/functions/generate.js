@@ -42,7 +42,7 @@ exports.handler = async (event) => {
         const systemInstructionWithImage = styleContext + "\nIf an image is provided, use it as reference for creating the animation";
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
+            model: "gemini-2.5-flash",
             contents: contents,
             config: {
                 systemInstruction: styleImage ? systemInstructionWithImage : styleContext,
