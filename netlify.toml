@@ -1,6 +1,15 @@
-[build]
- command = "npm run build"
- publish = "dist"
- functions = "netlify/functions"
+ [build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
 [functions]
- external_node_modules = ["@google/genai"]
+  # This is the crucial part that fixes the error.
+  # It tells the bundler to treat "@google/genai" as an external package
+  # that will be available in node_modules at runtime, instead of trying to bundle it.
+  external_node_modules = ["@google/genai"]
+  
+  # --- THIS IS THE NEW, DEFINITIVE FIX ---
+  # Switch from the default 'esbuild' bundler to 'zisi'.
+  # 'zisi' is more robust for functions with complex Node.js dependencies.
+  node_bundler = "zisi"

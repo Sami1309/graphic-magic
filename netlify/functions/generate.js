@@ -1,8 +1,7 @@
 // This file replaces server.js for deployment.
 // We use the 'dotenv' package to load environment variables.
-import 'dotenv/config';
-import { GoogleGenAI } from "@google/genai";
-import { styleContext } from '../../style-base/default.js';
+const { GoogleGenAI } = require("@google/genai");
+const { styleContext } = require('../../style-base/default.js');
 
 // The handler function is the entry point for the serverless function.
 export const handler = async (event) => {
