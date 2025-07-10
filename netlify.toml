@@ -13,3 +13,4 @@
   # Switch from the default 'esbuild' bundler to 'zisi'.
   # 'zisi' is more robust for functions with complex Node.js dependencies.
   node_bundler = "zisi"
+  timeout = 26
