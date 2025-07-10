@@ -4,7 +4,7 @@ const { GoogleGenAI } = require("@google/genai");
 const { styleContext } = require('../../style-base/default.js');
 
 // The handler function is the entry point for the serverless function.
-export const handler = async (event) => {
+exports.handler = async (event) => {
     // We only accept POST requests.
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
