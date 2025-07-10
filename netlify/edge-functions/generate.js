@@ -1,6 +1,6 @@
 // netlify/edge-functions/generate.js
 
-import { GoogleGenAI } from "https://esm.sh/@google/genai@1.9.0";
+import { GoogleGenAI } from "https://esm.sh/@google/genai@1.9.0/web";
 
 // Import style context - we'll need to inline this since edge functions can't import local files
 const styleContext = `
@@ -35,7 +35,7 @@ export default async (request, context) => {
 
     try {
         const { prompt, history, styleImage } = await request.json();
-        const apiKey = Netlify.env.get('GEMINI_API_KEY');
+        const apiKey = Deno.env.get('GEMINI_API_KEY');
 
         if (!apiKey) {
             return new Response(JSON.stringify({ 

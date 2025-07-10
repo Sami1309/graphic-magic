@@ -95,7 +95,8 @@ Make sure your `netlify.toml` file contains:
 
 ### Import/Module Errors
 - Edge functions use ES modules and ESM imports
-- The `@google/genai` library is imported via esm.sh CDN
+- The `@google/genai` library is imported via esm.sh CDN with `/web` suffix for edge compatibility
+- Environment variables are accessed via `Deno.env.get()` in edge functions
 - No bundling issues since it's loaded at runtime
 
 ### CORS Issues
@@ -124,7 +125,8 @@ For local development with edge functions:
 - Edge functions are available on all Netlify plans (including free)
 - Edge functions run on Netlify's global CDN for better performance
 - Streaming responses provide real-time feedback to users
-- The function uses ESM imports from esm.sh for dependencies
+- The function uses ESM imports from esm.sh with `/web` suffix for edge compatibility
+- Environment variables are accessed via `Deno.env.get()` in edge functions
 - No timeout limitations - perfect for long-running AI requests
 
 ## Performance Benefits
