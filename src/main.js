@@ -65,15 +65,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = JSON.parse(responseText);
             
-            if (data.jobId) {
-                // Start polling for completion
-                await pollForCompletion(data.jobId, prompt);
-            } else {
-                // Fallback for direct response (local development)
+            // Background function will eventually return the result directly
+            // For now, we just process the result when it comes back
+            if (data.html || data.css || data.js) {
+                // Direct response with animation data
                 updateScene(data);
                 conversationHistory.push(`User: ${prompt}`);
                 conversationHistory.push(`AI: (Generated new animation script)`);
                 addMessageToChat('Animation updated.', 'ai');
+            } else {
+                // Unexpected response format
+                console.warn('Unexpected response format:', data);
+                addMessageToChat('Animation generation completed, but response format was unexpected.', 'ai');
             }
 
         } catch (error) {
@@ -85,48 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function pollForCompletion(jobId, originalPrompt) {
-        const maxAttempts = 60; // 5 minutes max (5 second intervals)
-        let attempts = 0;
-        
-        const poll = async () => {
-            attempts++;
-            
-            try {
-                const response = await fetch(`/.netlify/functions/status?jobId=${jobId}`);
-                const data = await response.json();
-                
-                if (data.status === 'completed' && data.result) {
-                    // Success! Update the scene
-                    updateScene(data.result);
-                    conversationHistory.push(`User: ${originalPrompt}`);
-                    conversationHistory.push(`AI: (Generated new animation script)`);
-                    addMessageToChat('Animation updated.', 'ai');
-                    return;
-                } else if (data.status === 'error') {
-                    // Error occurred
-                    throw new Error(data.error || 'Generation failed');
-                } else if (data.status === 'processing') {
-                    // Still processing, continue polling
-                    if (attempts < maxAttempts) {
-                        generateBtn.textContent = `Generating... (${attempts * 5}s)`;
-                        setTimeout(poll, 5000); // Poll every 5 seconds
-                    } else {
-                        throw new Error('Generation timed out after 5 minutes');
-                    }
-                } else {
-                    throw new Error('Unknown status: ' + data.status);
-                }
-            } catch (error) {
-                console.error('Polling error:', error);
-                addMessageToChat(`Sorry, something went wrong: ${error.message}`, 'ai');
-                return;
-            }
-        };
-        
-        // Start polling
-        setTimeout(poll, 2000); // First poll after 2 seconds
-    }
 
     function updateScene({ html, css, js }) {
         if (scene && scene.destroy) scene.destroy();

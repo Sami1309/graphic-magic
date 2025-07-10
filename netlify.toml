@@ -15,4 +15,5 @@
   node_bundler = "zisi"
 
 [functions."generate"]
+  # Enable background function to avoid 10-second timeout
   background = true
