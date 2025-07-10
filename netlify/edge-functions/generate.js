@@ -27,7 +27,7 @@ Avoid using scene.stagger and scene.add for now
 }
 `;
 
-export default async (request, context) => {
+export default async (request) => {
     // Only handle POST requests
     if (request.method !== 'POST') {
         return new Response('Method Not Allowed', { status: 405 });
@@ -67,7 +67,18 @@ export default async (request, context) => {
                         message: 'Starting generation...' 
                     }) + '\n'));
 
+                    // Initialize GoogleGenAI with explicit API key
                     const ai = new GoogleGenAI(apiKey);
+                    
+                    // Validate API key is working
+                    if (!ai) {
+                        controller.enqueue(encoder.encode(JSON.stringify({ 
+                            status: 'error', 
+                            error: 'Failed to initialize Google GenAI client' 
+                        }) + '\n'));
+                        controller.close();
+                        return;
+                    }
 
                     const fullPrompt = `
                         **Previous Conversation History:**
@@ -99,18 +110,16 @@ export default async (request, context) => {
 
                     const systemInstructionWithImage = styleContext + "\nIf an image is provided, use it as the primary style reference.";
 
-                    const response = await ai.models.generateContent({
+                    const model = ai.getGenerativeModel({ 
                         model: "gemini-2.5-flash-preview-04-17",
-                        contents: contents,
-                        config: {
-                            systemInstruction: styleImage ? systemInstructionWithImage : styleContext,
+                        systemInstruction: styleImage ? systemInstructionWithImage : styleContext,
+                        generationConfig: {
                             responseMimeType: "application/json",
                             temperature: 0.0,
-                            thinkingConfig: {
-                                thinkingBudget: -1,                  
-                            },
                         },
                     });
+
+                    const response = await model.generateContent(contents);
 
                     controller.enqueue(encoder.encode(JSON.stringify({ 
                         status: 'processing', 
