@@ -58,6 +58,9 @@ exports.handler = async (event) => {
         // 1. Get the raw text from Gemini, which might have unescaped newlines.
         const geminiRawText = response.text;
 
+        console.log("Raw text from gemini")
+        console.log(geminiRawText)
+
         // 2. Parse it on the server into a true JavaScript object.
         const geminiJsObject = JSON.parse(geminiRawText);
 
