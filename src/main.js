@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addMessageToChat(prompt, 'user');
         generateBtn.classList.add('loading');
+        generateBtn.textContent = 'Generating...';
         promptInput.value = '';
         if (styleImageBase64) {
             styleImageBase64 = null;
@@ -46,19 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // --- THIS IS THE KEY CHANGE ---
-            // The URL now points to the serverless function endpoint.
-            // This works both locally with Netlify Dev and in production.
+            // Start the background generation process
             const response = await fetch('/.netlify/functions/generate', {
                 method: 'POST',
-                // No longer need full URL or headers, as it's on the same "origin"
                 body: JSON.stringify({ prompt, history: conversationHistory.join('\n'), styleImage: currentStyleImage }),
             });
 
-            // The serverless function returns the body directly as a string
             const responseText = await response.text();
             if (!response.ok) {
-                // Try to parse error details from the response text
                 try {
                     const errorJson = JSON.parse(responseText);
                     throw new Error(errorJson.details || errorJson.error || "An unknown error occurred.");
@@ -68,18 +64,68 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = JSON.parse(responseText);
-            updateScene(data);
-
-            conversationHistory.push(`User: ${prompt}`);
-            conversationHistory.push(`AI: (Generated new animation script)`);
-            addMessageToChat('Animation updated.', 'ai');
+            
+            if (data.jobId) {
+                // Start polling for completion
+                await pollForCompletion(data.jobId, prompt);
+            } else {
+                // Fallback for direct response (local development)
+                updateScene(data);
+                conversationHistory.push(`User: ${prompt}`);
+                conversationHistory.push(`AI: (Generated new animation script)`);
+                addMessageToChat('Animation updated.', 'ai');
+            }
 
         } catch (error) {
             console.error('Error:', error);
             addMessageToChat(`Sorry, something went wrong: ${error.message}`, 'ai');
         } finally {
             generateBtn.classList.remove('loading');
+            generateBtn.textContent = 'Generate';
         }
+    }
+
+    async function pollForCompletion(jobId, originalPrompt) {
+        const maxAttempts = 60; // 5 minutes max (5 second intervals)
+        let attempts = 0;
+        
+        const poll = async () => {
+            attempts++;
+            
+            try {
+                const response = await fetch(`/.netlify/functions/status?jobId=${jobId}`);
+                const data = await response.json();
+                
+                if (data.status === 'completed' && data.result) {
+                    // Success! Update the scene
+                    updateScene(data.result);
+                    conversationHistory.push(`User: ${originalPrompt}`);
+                    conversationHistory.push(`AI: (Generated new animation script)`);
+                    addMessageToChat('Animation updated.', 'ai');
+                    return;
+                } else if (data.status === 'error') {
+                    // Error occurred
+                    throw new Error(data.error || 'Generation failed');
+                } else if (data.status === 'processing') {
+                    // Still processing, continue polling
+                    if (attempts < maxAttempts) {
+                        generateBtn.textContent = `Generating... (${attempts * 5}s)`;
+                        setTimeout(poll, 5000); // Poll every 5 seconds
+                    } else {
+                        throw new Error('Generation timed out after 5 minutes');
+                    }
+                } else {
+                    throw new Error('Unknown status: ' + data.status);
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+                addMessageToChat(`Sorry, something went wrong: ${error.message}`, 'ai');
+                return;
+            }
+        };
+        
+        // Start polling
+        setTimeout(poll, 2000); // First poll after 2 seconds
     }
 
     function updateScene({ html, css, js }) {

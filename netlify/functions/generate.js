@@ -3,6 +3,7 @@
 // This file is now using CommonJS syntax (require/exports) for maximum compatibility.
 const { GoogleGenAI } = require("@google/genai");
 const { styleContext } = require('../../style-base/default.js');
+const { jobs } = require('./job-manager.js');
 
 // Use 'exports.handler' instead of 'export const handler'
 exports.handler = async (event) => {
@@ -21,6 +22,41 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: 'Prompt is required' }) };
         }
 
+        // Generate unique job ID
+        const jobId = Date.now().toString() + Math.random().toString(36).substring(2, 11);
+        
+        // Initialize job status
+        jobs.set(jobId, {
+            status: 'processing',
+            startTime: Date.now(),
+            prompt: prompt
+        });
+
+        // Start background processing (don't await)
+        processGenerationInBackground(jobId, prompt, history, styleImage, apiKey);
+
+        // Return job ID immediately
+        return {
+            statusCode: 202,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobId: jobId, status: 'processing' })
+        };
+
+    } catch (error) {
+        console.error('Error in serverless function:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                error: "Failed to start generation process.",
+                details: error.message || "An unknown error occurred."
+            })
+        };
+    }
+};
+
+// Background processing function
+async function processGenerationInBackground(jobId, prompt, history, styleImage, apiKey) {
+    try {
         const ai = new GoogleGenAI(apiKey);
 
         const fullPrompt = `
@@ -33,7 +69,14 @@ exports.handler = async (event) => {
         let contents;
         if (styleImage) {
             const match = styleImage.match(/^data:(.+);base64,(.+)$/);
-            if (!match) return { statusCode: 400, body: JSON.stringify({ error: 'Invalid image format.' }) };
+            if (!match) {
+                jobs.set(jobId, {
+                    status: 'error',
+                    error: 'Invalid image format.',
+                    completedAt: Date.now()
+                });
+                return;
+            }
             contents = [{ text: fullPrompt }, { inlineData: { mimeType: match[1], data: match[2] } }];
         } else {
             contents = [{ text: fullPrompt }];
@@ -54,12 +97,8 @@ exports.handler = async (event) => {
             },
         });
 
-        // --- THIS IS THE FIX ---
-        // 1. Get the raw text from Gemini, which might have unescaped newlines.
+        // Process response
         const geminiRawText = response.text;
-
-        // 2. Find the start and end of the JSON object within the raw response.
-        //    This handles cases where the LLM wraps the JSON in ```json ... ``` or other text.
         const startIndex = geminiRawText.indexOf('{');
         const endIndex = geminiRawText.lastIndexOf('}');
 
@@ -67,29 +106,22 @@ exports.handler = async (event) => {
             throw new Error("LLM response did not contain a valid JSON object. Raw response: " + geminiRawText);
         }
 
-        // 3. Extract the JSON block as a string.
         const jsonBlock = geminiRawText.substring(startIndex, endIndex + 1);
-
-        // 4. Parse the extracted block. If this fails, the catch block will now have a more informative error.
         const geminiJsObject = JSON.parse(jsonBlock);
 
-        // 5. Re-stringify the parsed object to ensure it's perfectly clean
-        //    for the browser, escaping all control characters correctly.
-        return {
-            statusCode: 200,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(geminiJsObject),
-        };
-        // --- END OF FIX ---
+        // Update job status with result
+        jobs.set(jobId, {
+            status: 'completed',
+            result: geminiJsObject,
+            completedAt: Date.now()
+        });
 
     } catch (error) {
-        console.error('Error in serverless function:', error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({
-                error: "Failed to generate animation from API.",
-                details: error.message || "An unknown error occurred."
-            })
-        };
+        console.error('Error in background processing:', error);
+        jobs.set(jobId, {
+            status: 'error',
+            error: error.message || "An unknown error occurred during generation.",
+            completedAt: Date.now()
+        });
     }
-};
+}
